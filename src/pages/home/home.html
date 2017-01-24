@@ -1,3 +1,20 @@
 <ion-content padding>
   <div id="canvas-container" #canvasContainer></div>
+  <paint [color]="color" [lineWidth]="5" (onDraw)="drawShape($event)" [hidden]="!paint"></paint>
 </ion-content>
+
+<ion-fab left bottom>
+  <button ion-fab color="light" (tap)="togglePaint()"><ion-icon name="color-palette" class="half-transparent" [ngStyle]="{color: color}"></ion-icon></button>
+  <ion-fab-list side="top">
+    <button ion-fab *ngFor="let color of colors" (tap)="setColor(color)" [ngClass]="{active: isActiveColor(color)}"><ion-icon name="square" [ngStyle]="{color: color}"></ion-icon></button>
+  </ion-fab-list>
+  <ion-fab-list side="right">
+    <button ion-fab (tap)="setMode('normal')" [ngClass]="{active: isActiveMode('normal')}"><ion-icon name="radio-button-on"></ion-icon></button>
+    <button ion-fab (tap)="setMode('static')" [ngClass]="{active: isActiveMode('static')}"><ion-icon name="radio-button-off"></ion-icon></button>
+    <button ion-fab (tap)="setMode('constraint')" [ngClass]="{active: isActiveMode('constraint')}"><ion-icon name="resize"></ion-icon></button>
+  </ion-fab-list>
+</ion-fab>
+
+<ion-fab right bottom>
+  <button ion-fab color="light" (tap)="reset()"><ion-icon name="trash" class="half-transparent"></ion-icon></button>
+</ion-fab>

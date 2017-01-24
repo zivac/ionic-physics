@@ -1,0 +1,16 @@
+ion-content .scroll-content {
+    overflow: hidden
+}
+canvas {
+    position: absolute;
+    top: 0;
+}
+.half-transparent {
+    opacity: 0.5;
+}
+button.fab, button.fab-in-list.show {
+    background-color: rgba(244, 244, 244, 0.5);
+}
+button.fab-in-list.show.active {
+    background-color: rgba(122, 122, 244, 0.5);
+}

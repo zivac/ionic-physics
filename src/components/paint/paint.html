@@ -1,0 +1,4 @@
+<div>
+  <canvas [width]="canvasWidth" [height]="canvasHeight" #canvas></canvas>
+  <canvas [width]="canvasWidth" [height]="canvasHeight" #tmpCanvas id="tmp-canvas" (touchstart)="startDraw($event)" (touchend)="endDraw($event)" (touchmove)="paint($event)"></canvas>
+</div>

@@ -1,6 +1,9 @@
 import { Component, ViewChild } from '@angular/core';
 
+import decomp from 'poly-decomp';
 import * as Matter from 'matter-js';
+
+//window['decomp'] = decomp;
 
 // Matter aliases
 const Engine = Matter.Engine,
@@ -23,6 +26,27 @@ export class HomePage {
   sceneWidth = window.innerWidth
   sceneHeight = window.innerHeight
   deviceOrientationEvent
+
+  colors = ['#DDDDDD', '#2ECC40', '#0074D9', '#B10DC9', '#FF4136', '#FF851B', '#FFDC00'];
+  color = '#0074D9';
+  paint = false;
+  mode = 'normal';
+
+  setColor(color) {
+    this.color = color;
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+  }
+
+  isActiveColor(color) {
+    return this.color == color;
+  }
+
+  isActiveMode(mode) {
+    return this.mode == mode;
+  }
 
   @ViewChild('canvasContainer') canvasContainer;
 
@@ -143,6 +167,27 @@ export class HomePage {
       World.add(this.world, stack);
   }
 
+  drawShape(points) {
+      //console.log(points)
+      if(this.mode=='normal' || this.mode=='static') {
+          World.addBody(this.world, Matter.Body.create({
+            position: Matter.Vertices.centre(points),
+            vertices: points,
+            isStatic: this.mode == 'static',
+            render: {strokeStyle: Common.shadeColor(this.color, -20),fillStyle: this.color}
+          }));
+      } else if(this.mode=='constraint') {
+          console.log(this.world)
+          var body1 = Matter.Query.point(this.world.bodies, points[0]);
+          var body2 = Matter.Query.point(this.world.bodies, points[points.length-1]);
+          console.log(body1, body2);
+      }
+  }
+
+  togglePaint() {
+      this.paint = !this.paint;
+  }
+
   reset() {
     this.world = this.engine.world;
 
@@ -151,7 +196,7 @@ export class HomePage {
     World.clear(this.world);
     Engine.clear(this.engine);
     
-    let offset = 5;
+    let offset = 25;
     World.addBody(this.world, Bodies.rectangle(this.sceneWidth * 0.5, -offset, this.sceneWidth + 0.5, 50.5, { isStatic: true }));
     World.addBody(this.world, Bodies.rectangle(this.sceneWidth * 0.5, this.sceneHeight + offset, this.sceneWidth + 0.5, 50.5, { isStatic: true }));
     World.addBody(this.world, Bodies.rectangle(this.sceneWidth + offset, this.sceneHeight * 0.5, 50.5, this.sceneHeight + 0.5, { isStatic: true }));
