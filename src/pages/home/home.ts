@@ -30,6 +30,7 @@ export class HomePage {
   colors = ['#DDDDDD', '#2ECC40', '#0074D9', '#B10DC9', '#FF4136', '#FF851B', '#FFDC00'];
   color = '#0074D9';
   paint = false;
+  gravityOn = true;
   mode = 'normal';
 
   setColor(color) {
@@ -40,12 +41,33 @@ export class HomePage {
     this.mode = mode;
   }
 
+  toggleGravity() {
+      this.gravityOn = !this.gravityOn;
+      if(!this.gravityOn) {
+          this.engine.world.gravity.x = 0;
+          this.engine.world.gravity.y = 0;
+      } else {
+          if(!this.engine.world.gravity.y) this.engine.world.gravity.y = 1;
+      }
+  }
+
   isActiveColor(color) {
     return this.color == color;
   }
 
   isActiveMode(mode) {
     return this.mode == mode;
+  }
+
+  getIcon(mode) {
+    if(mode=='normal') return 'brush';
+    else if(mode=='static') return 'cloud-outline';
+    else if(mode=='constraint') return 'resize';
+    else if(mode=='move') return 'hand';
+  }
+
+  getGravityIcon() {
+      return this.gravityOn ? 'cloud-download' : 'cloud'
   }
 
   @ViewChild('canvasContainer') canvasContainer;
@@ -103,12 +125,14 @@ export class HomePage {
     canvas.width = renderOptions.width = this.sceneWidth;
     canvas.height = renderOptions.height = this.sceneHeight;
 
-    this[this.sceneName]();
+    //this[this.sceneName]();
+
+    this.reset();
   }
 
   updateGravity(x, y) {
-    if (!this.engine)
-        return;
+    if (!this.engine) return;
+    if (!this.gravityOn) return;
     
     let orientation = window.orientation;
     this.gravity = this.engine.world.gravity;
@@ -146,8 +170,6 @@ export class HomePage {
       this.world = this.engine.world;
       
       this.reset();
-
-      World.add(this.world, MouseConstraint.create(this.engine));
       
       let stack = Composites.stack(20, 20, 10, 5, 0, 0, (x, y, column, row) => {
           switch (Math.round(Common.random(0, 1))) {
@@ -168,19 +190,46 @@ export class HomePage {
   }
 
   drawShape(points) {
-      //console.log(points)
-      if(this.mode=='normal' || this.mode=='static') {
+      if(points.length < 2) return;
+      if(this.mode == 'normal' || this.mode == 'static') {
+          let point = Matter.Vertices.centre(points);
+          World.add(this.world, Bodies.fromVertices(point.x, point.y, points, {isStatic: this.mode=='static'}));
+      } else if(this.mode == 'static') {
           World.addBody(this.world, Matter.Body.create({
             position: Matter.Vertices.centre(points),
             vertices: points,
-            isStatic: this.mode == 'static',
-            render: {strokeStyle: Common.shadeColor(this.color, -20),fillStyle: this.color}
+            isStatic: true
           }));
-      } else if(this.mode=='constraint') {
-          console.log(this.world)
-          var body1 = Matter.Query.point(this.world.bodies, points[0]);
-          var body2 = Matter.Query.point(this.world.bodies, points[points.length-1]);
-          console.log(body1, body2);
+      } else if(this.mode == 'constraint') {
+          let body1 = Matter.Query.point(this.world.bodies, points[0]);
+          let body2 = Matter.Query.point(this.world.bodies, points[points.length-1]);
+          if(body1.length && body2.length) {
+              World.add(this.world, Matter.Constraint.create({
+                  bodyA: body1[0],
+                  bodyB: body2[0],
+                  pointA: {x: points[0].x - body1[0].position.x, y: points[0].y - body1[0].position.y},
+                  pointB: {x: points[points.length-1].x - body2[0].position.x, y: points[points.length-1].y - body2[0].position.y},
+                  stiffness: 0.2,
+                  //length: Math.sqrt(Math.pow(points[0].x - points[points.length-1].x, 2) + Math.pow(points[0].y - points[points.length-1].y, 2))/2
+              }))
+          }
+      }
+  }
+
+  deleteShape(event) {
+      let body = Matter.Query.point(this.world.bodies, event.center);
+      if(body.length) {
+          if(this.mode == 'delete') {
+              let constraints = this.world.constraints.filter(constraint => {
+                    return constraint.label != 'Mouse Constraint' && (constraint.bodyA == body[0] || constraint.bodyB == body[0]);
+                })
+                constraints.forEach(constraint => {
+                    World.remove(this.world, constraint)
+                })
+                World.remove(this.world, body[0]);
+          } else {
+              //body[0].isStatic = !this.gravity;
+          }
       }
   }
 
@@ -201,6 +250,8 @@ export class HomePage {
     World.addBody(this.world, Bodies.rectangle(this.sceneWidth * 0.5, this.sceneHeight + offset, this.sceneWidth + 0.5, 50.5, { isStatic: true }));
     World.addBody(this.world, Bodies.rectangle(this.sceneWidth + offset, this.sceneHeight * 0.5, 50.5, this.sceneHeight + 0.5, { isStatic: true }));
     World.addBody(this.world, Bodies.rectangle(-offset, this.sceneHeight * 0.5, 50.5, this.sceneHeight + 0.5, { isStatic: true }));
+
+    World.add(this.world, MouseConstraint.create(this.engine));
   }
 
 }
