@@ -6,9 +6,45 @@ import * as Matter from 'matter-js';
 const Engine = Matter.Engine,
     World = Matter.World,
     Bodies = Matter.Bodies,
+    Composite = Matter.Composite,
     Composites = Matter.Composites,
     Common = Matter.Common,
+    Events = Matter.Events,
     MouseConstraint = Matter.MouseConstraint;
+
+Composite.removeBodyAndConstraints = (composite, body) => {
+    composite.constraints.forEach(constraint => {
+        if (constraint.bodyA == body || constraint.bodyB == body) constraint.markForRemoval = true;;
+    })
+    composite.constraints.filter(constraint => constraint.markForRemoval).forEach(constraint => Composite.remove(composite, constraint))
+    Composite.remove(composite, body);
+}
+
+const pieces = ['11;11', '1;1;1;1', '011;110', '110;011', '10;10;11', '01;01;11', '111;010'];
+const colors = ['#FFDC00', '#7FDBFF', '#FF4136', '#2ECC40', '#FF851B', '#F012BE', '#B10DC9'];
+
+Composites.tetrisPiece = (width, height, x = 20, y = 20) => {
+
+    let choice = Common.choose(pieces);
+    let piece = choice.split(';');
+    let rows = piece.length;
+    let cols = piece[0].length;
+
+    let stack = Composites.stack(x, y, cols, rows, 0, 0, (x, y, column, row) => {
+        let body = Bodies.rectangle(x, y, width, height, { friction: 0.01, restitution: 0.4, render: {strokeStyle: '#333', fillStyle: colors[pieces.indexOf(choice)]} });
+        if(piece[row][column] != '1') body.markForRemoval = true;
+        return body;
+    });
+
+    let mesh = Composites.mesh(stack, cols, rows, true)
+    mesh.bodies.filter(body => body.markForRemoval).forEach(body => Composite.removeBodyAndConstraints(mesh, body));
+
+    mesh.constraints.forEach(constraint => constraint.render.visible = false);
+    mesh.bodies.forEach(body => body.piece = mesh);
+
+    return mesh;
+
+}
 
 @Component({
     selector: 'page-home',
@@ -24,6 +60,7 @@ export class HomePage {
     sceneWidth = window.innerWidth
     sceneHeight = window.innerHeight
     deviceOrientationEvent
+    stack = []
 
     @ViewChild('canvasContainer') canvasContainer;
 
@@ -124,6 +161,14 @@ export class HomePage {
         }*/
     }
 
+    addTetrisPiece() {
+        let piece = Composites.tetrisPiece(this.sceneWidth / 10, this.sceneWidth / 10, this.sceneWidth / 2 - this.sceneWidth / 10);
+        World.add(this.world, piece);
+        setTimeout(() => {
+            this.addTetrisPiece();
+        }, 3000)
+    }
+
     mixed() {
         this.world = this.engine.world;
 
@@ -131,30 +176,56 @@ export class HomePage {
 
         World.add(this.world, MouseConstraint.create(this.engine));
 
-        let stack = Composites.stack(20, 20, 2, 2, 0, 0, (x, y, column, row) => {
-            return Bodies.rectangle(x, y, 50, 50, { friction: 0.01, restitution: 0.4 });
-        });
+        let offset = this.sceneWidth / 20;
+        let colliderIndex = 1;
+        while(offset < this.sceneHeight) {
 
-        for (var i = 0; i < stack.bodies.length; i++) {
-            Matter.Events.on(stack.bodies[i], 'sleepStart sleepEnd', function(event) {
-                var body = this;
-                console.log('body id', body.id, 'sleeping:', body.isSleeping);
+            let collider = Bodies.rectangle(this.sceneWidth * 0.5, this.sceneHeight - offset, this.sceneWidth, 5, {
+                isSensor: true,
+                isStatic: true,
+                collider: colliderIndex,
+                render: {
+                    strokeStyle: 'red',
+                    fillStyle: 'transparent',
+                    lineWidth: 1
+                }
             });
+
+            World.add(this.world, collider);
+            this.stack[colliderIndex] = [];
+            offset += this.sceneWidth/10;
+            colliderIndex++;
         }
 
-        let mesh = Composites.mesh(stack, 2, 2, true)
+        this.addTetrisPiece();
 
-        let body = mesh.bodies[3]
+        Events.on(this.engine, 'collisionStart', event => {
+            var pairs = event.pairs;
+            
+            for (var i = 0, j = pairs.length; i != j; ++i) {
+                var pair = pairs[i];
 
-        console.log(mesh.constraints.length, mesh.constraints)
+                if (pair.bodyA.collider) {
+                    if(pair.bodyB.stack) this.stack[pair.bodyB.stack].splice(this.stack[pair.bodyB.stack].indexOf(pair.bodyB), 1)
+                    pair.bodyB.stack = pair.bodyA.collider;
+                    pair.bodyB.render.fillStyle = colors[pair.bodyB.stack % colors.length];
+                    this.stack[pair.bodyB.stack].push(pair.bodyB)
+                    if(this.stack[pair.bodyB.stack].length >= 10) this.clearStack(pair.bodyB.stack)
+                } else if (pair.bodyB.collider) {
+                    if(pair.bodyA.stack) this.stack[pair.bodyA.stack].splice(this.stack[pair.bodyA.stack].indexOf(pair.bodyA), 1)
+                    pair.bodyA.stack = pair.bodyB.collider;
+                    pair.bodyA.render.fillStyle = colors[pair.bodyA.stack % colors.length];
+                    this.stack[pair.bodyA.stack].push(pair.bodyA)
+                    if(this.stack[pair.bodyA.stack].length >= 10) this.clearStack(pair.bodyA.stack)
+                }
+            }
+        });
 
-        mesh.constraints.forEach(constraint => {
-            if (constraint.bodyA == body || constraint.bodyB == body) constraint.markForRemoval = true;;
-        })
-        mesh.constraints.filter(constraint => constraint.markForRemoval).forEach(constraint => Matter.Composite.remove(mesh, constraint))
-        Matter.Composite.remove(mesh, body);
+    }
 
-        World.add(this.world, mesh);
+    clearStack(i) {
+        this.stack[i].forEach(body => Composite.removeBodyAndConstraints(body.piece, body));
+        this.stack[i] = [];
     }
 
     reset() {
